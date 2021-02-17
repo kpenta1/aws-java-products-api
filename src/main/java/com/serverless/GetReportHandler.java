@@ -19,7 +19,6 @@ import com.google.gson.Gson;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -69,7 +68,6 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
         return ApiGatewayResponse.builder()
                 .setStatusCode(200)
                 .setObjectBody(response)
-                .setHeaders(Collections.singletonMap("X-Powered-By", "AWS Lambda & Serverless"))
                 .build();
     }
 

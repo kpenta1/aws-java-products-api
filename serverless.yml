@@ -26,6 +26,7 @@ provider:
   region: us-west-2
   profile: pentak-4
 
+
 # you can overwrite defaults here
 #  stage: dev
 #  region: us-east-1

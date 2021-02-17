@@ -7,6 +7,7 @@ import com.google.common.base.Supplier;
 import com.google.gson.Gson;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -17,6 +18,7 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 
@@ -46,11 +48,21 @@ public class AwsClient {
                                      String secretKey,
                                      String serviceName,
                                      String region,
-                                     String spApiAccessToken) {
+                                     String spApiAccessToken,
+                                     String postRequestBody) {
+
+        System.out.println(" Posting to url: " + postUrl);
 
         HttpPost httpPost = new HttpPost(postUrl);
+        httpPost.setHeader("Content-type", "application/json");
 
         httpPost.addHeader("x-amz-access-token", spApiAccessToken);
+
+        try {
+            httpPost.setEntity(new StringEntity(postRequestBody));
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException("Error when encoding post url parameters");
+        }
 
         return execute(httpPost, accessKey, secretKey, serviceName, region);
     }
