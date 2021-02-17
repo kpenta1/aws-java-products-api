@@ -21,6 +21,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,7 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
 
     @Override
     public ApiGatewayResponse handleRequest(Map<String, Object> input, Context context) {
+        logger.log(INFO, "Request: " + gson.toJson(input));
 
         final String refreshToken = System.getenv("refreshToken");
         final String clientId = System.getenv("clientId");
@@ -49,20 +51,81 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
         final String spApiRegion = System.getenv("spApiRegion");
         final String spApiBaseUrl = System.getenv("spApiBaseUrl");
 
-        logger.log(INFO, "Request: " + gson.toJson(input));
-
         final String accessToken = getRefreshAccessToken(oauthUrl, refreshToken, clientId, clientSecret);
         logger.log(INFO, "Refresh token: " + accessToken);
 
-        final String getReportResponse = AwsClient.getRequest(
-                spApiBaseUrl + "documents/amzn1.tortuga.3.50cf2cb4-5ef8-4737-bbb2-656d262eaf78.T3FC5H4LNLUVVI",
+        final String reportId = "53434018674";
+        final Map<String, Object> reportStatusMap = getReportStatus(
+                reportId, spApiBaseUrl, spApiAccessKey, spApiSecretKey, spApiServiceName, spApiRegion, accessToken);
+
+        final String processingStatus = (String) reportStatusMap.get("processingStatus");
+        logger.log(INFO, " Processing status: " + processingStatus);
+
+        if (!"DONE".equals(processingStatus)) {
+            Map<String, Object> responseMap = new HashMap<>();
+            responseMap.put("IsComplete", false);
+
+            return ApiGatewayResponse.builder()
+                    .setStatusCode(200)
+                    .setObjectBody(responseMap)
+                    .build();
+        }
+
+        final String documentId = (String) reportStatusMap.get("reportDocumentId");
+
+        final List<Map<String, String>> reportDocumentData = getReportDocumentData(
+                spApiBaseUrl, spApiAccessKey, spApiSecretKey, spApiServiceName, spApiRegion, accessToken, documentId);
+
+        return ApiGatewayResponse.builder()
+                .setStatusCode(200)
+                .setObjectBody(reportDocumentData)
+                .build();
+    }
+
+    private Map<String, Object> getReportStatus(String reportId,
+                                              String spApiBaseUrl,
+                                              String spApiAccessKey,
+                                              String spApiSecretKey,
+                                              String spApiServiceName,
+                                              String spApiRegion,
+                                              String accessToken) {
+        final String reportStatusResponse = AwsClient.getRequest(
+                spApiBaseUrl + "reports/" + reportId,
                 spApiAccessKey,
                 spApiSecretKey,
                 spApiServiceName,
                 spApiRegion,
                 accessToken
         );
-        logger.log(INFO, "Get report response: " + getReportResponse);
+        logger.log(INFO, "Get report status response: " + reportStatusResponse);
+
+        if (reportStatusResponse.contains("errors")) {
+            throw new RuntimeException("Sp-Api returns error response: " + reportStatusResponse);
+        }
+
+        final Map<String, Object> statusMap = gson.fromJson(reportStatusResponse, Map.class);
+
+        final Map<String, Object> payloadMap = (Map<String, Object>) statusMap.get("payload");
+
+        return payloadMap;
+    }
+
+    private List<Map<String, String>> getReportDocumentData(String spApiBaseUrl,
+                                                            String spApiAccessKey,
+                                                            String spApiSecretKey,
+                                                            String spApiServiceName,
+                                                            String spApiRegion,
+                                                            String accessToken,
+                                                            String documentId) {
+        final String getReportResponse = AwsClient.getRequest(
+                spApiBaseUrl + "documents/" + documentId,
+                spApiAccessKey,
+                spApiSecretKey,
+                spApiServiceName,
+                spApiRegion,
+                accessToken
+        );
+        logger.log(INFO, "Get report document response: " + getReportResponse);
 
         final Map<String, String> getDocumentResponseMap = parseGetDocumentResponse(getReportResponse);
 
@@ -71,10 +134,7 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
                 getDocumentResponseMap.get("initializationVector"),
                 getDocumentResponseMap.get("s3url"));
 
-        return ApiGatewayResponse.builder()
-                .setStatusCode(200)
-                .setObjectBody(response)
-                .build();
+        return response;
     }
 
     private List<Map<String, String>> decryptSPApiFile(String key,
@@ -126,8 +186,8 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
             // Handle exception.
             logger.log(Level.SEVERE, "Error");
             logger.log(Level.SEVERE, e.getMessage());
-            System.out.println(e);
             System.out.println(gson.toJson(e));
+            throw new RuntimeException("Error downloading/decrypting sp-api data.");
         }
 
         return resultList;
