@@ -19,9 +19,15 @@ import com.google.gson.Gson;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class GetReportHandler implements RequestHandler<Map<String, Object>, ApiGatewayResponse> {
 
@@ -60,7 +66,7 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
 
         final Map<String, String> getDocumentResponseMap = parseGetDocumentResponse(getReportResponse);
 
-        final String response = decryptSPApiFile(
+        final List<Map<String, String>> response = decryptSPApiFile(
                 getDocumentResponseMap.get("key"),
                 getDocumentResponseMap.get("initializationVector"),
                 getDocumentResponseMap.get("s3url"));
@@ -71,12 +77,10 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
                 .build();
     }
 
-    private String decryptSPApiFile(String key,
-                                    String initializationVector,
-                                    String url) {
-        System.out.println(" \n\n\n Decrypting .....");
-
-        logger.log(INFO, "Start decrypting");
+    private List<Map<String, String>> decryptSPApiFile(String key,
+                                                       String initializationVector,
+                                                       String url) {
+        logger.log(INFO, "Start decrypting ..");
         logger.log(INFO, "Key: " + key);
         logger.log(INFO, "IV: " + initializationVector);
         logger.log(INFO, "URL: " + url);
@@ -89,16 +93,32 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
         DownloadSpecification downloadSpec = new DownloadSpecification.Builder(aesCryptoStreamFactory, url)
                 .build();
 
-        StringBuilder buffer = new StringBuilder();
+
+        List<Map<String, String>> resultList = new ArrayList<>();
+
+        List<String> headers = new ArrayList<>();
+        int count = 0;
 
         try (DownloadBundle downloadBundle = downloadHelper.download(downloadSpec)) {
             try (BufferedReader reader = downloadBundle.newBufferedReader()) {
                 String line;
                 do {
                     line = reader.readLine();
-                    logger.log(INFO, " Reading line: " + line);
-                    buffer.append(line);
-                    System.out.println(line);
+                    if (null != line) {
+                        logger.log(INFO, " Reading line: " + line);
+                        final String[] attributeValues = line.split("\\t");
+                        logger.log(INFO, " Size: " + attributeValues.length);
+                        if (count == 0) {
+                            headers = Arrays.asList(attributeValues);
+                        } else {
+                            final Iterator<String> headersIter = headers.iterator();
+                            final Iterator<String> values = Arrays.asList(attributeValues).iterator();
+                            final Map<String, String> mergedData = IntStream.range(0, headers.size()).boxed()
+                                    .collect(Collectors.toMap(_i -> headersIter.next(), _i -> values.next()));
+                            resultList.add(mergedData);
+                        }
+                        count++;
+                    }
                 } while (line != null);
             }
         }
@@ -110,6 +130,6 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
             System.out.println(gson.toJson(e));
         }
 
-        return buffer.toString();
+        return resultList;
     }
 }
