@@ -1,8 +1,11 @@
 package com.serverless;
 
+import static com.serverless.utils.RefreshSpApiAccessToken.getRefreshAccessToken;
+import static com.serverless.utils.SpApiResponseParser.parseGetDocumentResponse;
+import static java.util.logging.Level.INFO;
+
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-import com.serverless.external.portsp.CompressionAlgorithm;
 import com.serverless.external.portsp.DownloadBundle;
 import com.serverless.external.portsp.DownloadHelper;
 import com.serverless.external.portsp.DownloadSpecification;
@@ -10,6 +13,7 @@ import com.serverless.external.portsp.exception.CryptoException;
 import com.serverless.external.portsp.exception.HttpResponseException;
 import com.serverless.external.portsp.exception.MissingCharsetException;
 import com.serverless.external.portsp.impl.AESCryptoStreamFactory;
+import com.serverless.utils.AwsClient;
 
 import com.google.gson.Gson;
 
@@ -24,22 +28,43 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
 
     private final Logger logger = Logger.getLogger(GetReportHandler.class.getName());
 
-    Gson gson = new Gson();
+    private Gson gson = new Gson();
 
     @Override
     public ApiGatewayResponse handleRequest(Map<String, Object> input, Context context) {
 
-//        String s3url = "https://tortuga-prod-na.s3-external-1.amazonaws.com/%2FNinetyDays/amzn1.tortuga.3.50cf2cb4-5ef8-4737-bbb2-656d262eaf78.T3FC5H4LNLUVVI?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210217T045005Z&X-Amz-SignedHeaders=host&X-Amz-Expires=300&X-Amz-Credential=AKIA5U6MO6RANYPNEUPL%2F20210217%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=ede63a5dfdb4349e55972eee5123585d2388c714f690daaf0cd3623fb8815d85";
-//        String key = "oqwEBfrZsCWvawe5MCkATFqinAAugr5Pe0wwU1ZiF1Y=";
-//        String iv = "vvvrLs756Hp5jOQaVWBGPQ==";
+        final String refreshToken = System.getenv("refreshToken");
+        final String clientId = System.getenv("clientId");
+        final String clientSecret = System.getenv("clientSecret");
+        final String oauthUrl = System.getenv("oauthUrl");
 
-        logger.log(Level.INFO, "Request: " + gson.toJson(input));
+        final String spApiAccessKey = System.getenv("spApiAwsAccountAccessKey");
+        final String spApiSecretKey = System.getenv("spApiAwsAccountSecretKey");
+        final String spApiServiceName = System.getenv("spApiServiceName");
+        final String spApiRegion = System.getenv("spApiRegion");
+        final String spApiBaseUrl = System.getenv("spApiBaseUrl");
 
-        String s3url = (String) input.get("url");
-        String key = (String) input.get("key");
-        String iv = (String) input.get("iv");
+        logger.log(INFO, "Request: " + gson.toJson(input));
 
-        final String response = decryptSPApiFile(key, iv, s3url, "AES");
+        final String accessToken = getRefreshAccessToken(oauthUrl, refreshToken, clientId, clientSecret);
+        logger.log(INFO, "Refresh token: " + accessToken);
+
+        final String getReportResponse = AwsClient.getRequest(
+                spApiBaseUrl + "documents/amzn1.tortuga.3.50cf2cb4-5ef8-4737-bbb2-656d262eaf78.T3FC5H4LNLUVVI",
+                spApiAccessKey,
+                spApiSecretKey,
+                spApiServiceName,
+                spApiRegion,
+                accessToken
+        );
+        logger.log(INFO, "Get report response: " + getReportResponse);
+
+        final Map<String, String> getDocumentResponseMap = parseGetDocumentResponse(getReportResponse);
+
+        final String response = decryptSPApiFile(
+                getDocumentResponseMap.get("key"),
+                getDocumentResponseMap.get("initializationVector"),
+                getDocumentResponseMap.get("s3url"));
 
         return ApiGatewayResponse.builder()
                 .setStatusCode(200)
@@ -50,14 +75,13 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
 
     private String decryptSPApiFile(String key,
                                     String initializationVector,
-                                    String url,
-                                    String compressionAlgorithm) {
+                                    String url) {
         System.out.println(" \n\n\n Decrypting .....");
 
-        logger.log(Level.INFO, "Start decrypting");
-        logger.log(Level.INFO, "Key: " + key);
-        logger.log(Level.INFO, "IV: " + initializationVector);
-        logger.log(Level.INFO, "URL: " + url);
+        logger.log(INFO, "Start decrypting");
+        logger.log(INFO, "Key: " + key);
+        logger.log(INFO, "IV: " + initializationVector);
+        logger.log(INFO, "URL: " + url);
 
         final DownloadHelper downloadHelper = new DownloadHelper.Builder().build();
 
@@ -65,7 +89,6 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
                 new AESCryptoStreamFactory.Builder(key, initializationVector).build();
 
         DownloadSpecification downloadSpec = new DownloadSpecification.Builder(aesCryptoStreamFactory, url)
-                //.withCompressionAlgorithm(CompressionAlgorithm.fromEquivalent("GZIP"))
                 .build();
 
         StringBuilder buffer = new StringBuilder();
@@ -75,7 +98,7 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
                 String line;
                 do {
                     line = reader.readLine();
-                    logger.log(Level.INFO, " Reading line: " + line);
+                    logger.log(INFO, " Reading line: " + line);
                     buffer.append(line);
                     System.out.println(line);
                 } while (line != null);
