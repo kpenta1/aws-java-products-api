@@ -96,13 +96,17 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
         final List<Map<String, String>> reportDocumentData = getReportDocumentData(
                 spApiBaseUrl, spApiAccessKey, spApiSecretKey, spApiServiceName, spApiRegion, accessToken, documentId);
 
+        logger.log(INFO, "Raw data from SP-API: \n" + gson.toJson(reportDocumentData));
+
+        final List<Map<String, Object>> transformedReportDocumentData = transformSpApiData(reportDocumentData);
+
         final Map<String, Object> formattedReportDocumentData = new HashMap<>();
-        formattedReportDocumentData.put("catalog", reportDocumentData);
+        formattedReportDocumentData.put("catalog", transformedReportDocumentData);
 
         final String catalogData = gson.toJson(formattedReportDocumentData);
 
         logger.log(INFO, " Writing report data to s3 ");
-        
+
         String bucket = System.getenv("destinationS3Bucket");
         String key = sellerId + "/" + requestId + "/extract/spapi_get_report_response";
 
@@ -245,5 +249,20 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
                 .build();
 
         s3client.putObject(bucket, key, data);
+    }
+
+    private List<Map<String, Object>> transformSpApiData(List<Map<String, String>> list) {
+        return list.stream().map(item -> {
+            Map<String, Object> transformedMap = new HashMap<>();
+            transformedMap.put("sku", item.get("seller-sku"));
+            transformedMap.put("asin", item.get("product-id"));
+            transformedMap.put("title", item.get("item-name"));
+            transformedMap.put("description", item.get("item-description"));
+            transformedMap.put("price", item.get("price"));
+            transformedMap.put("itemCondition", item.get("item-condition"));
+            transformedMap.put("status", item.get("status"));
+            transformedMap.put("fulfilledBy", item.get("fulfillment-channel"));
+            return transformedMap;
+        }).collect(Collectors.toList());
     }
 }
