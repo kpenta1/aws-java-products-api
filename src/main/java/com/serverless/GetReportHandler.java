@@ -96,12 +96,13 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
         final List<Map<String, String>> reportDocumentData = getReportDocumentData(
                 spApiBaseUrl, spApiAccessKey, spApiSecretKey, spApiServiceName, spApiRegion, accessToken, documentId);
 
-        final String catalogData = gson.toJson(reportDocumentData);
+        final Map<String, Object> formattedReportDocumentData = new HashMap<>();
+        formattedReportDocumentData.put("catalog", reportDocumentData);
+
+        final String catalogData = gson.toJson(formattedReportDocumentData);
 
         logger.log(INFO, " Writing report data to s3 ");
-
-        AmazonS3 s3Client = AmazonS3ClientBuilder.standard().withRegion(Regions.DEFAULT_REGION).build();
-
+        
         String bucket = System.getenv("destinationS3Bucket");
         String key = sellerId + "/" + requestId + "/extract/spapi_get_report_response";
 
