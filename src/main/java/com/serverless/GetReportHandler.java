@@ -12,6 +12,8 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.util.StringUtils;
 import com.serverless.external.portsp.DownloadBundle;
@@ -26,7 +28,10 @@ import com.serverless.utils.AwsClient;
 import com.google.gson.Gson;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -240,6 +245,7 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
 
         logger.log(INFO, " Catalog data: \n" + data);
 
+
         AWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
 
         AmazonS3 s3client = AmazonS3ClientBuilder
@@ -248,7 +254,15 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
                 .withRegion(Regions.fromName(appRegion))
                 .build();
 
-        s3client.putObject(bucket, key, data);
+        byte[] contentBytes = data.getBytes(StandardCharsets.UTF_8);
+        InputStream stream = new ByteArrayInputStream(contentBytes);
+        ObjectMetadata objectMetadata = new ObjectMetadata();
+        objectMetadata.setContentLength(contentBytes.length);
+
+        PutObjectRequest putRequest = new PutObjectRequest(bucket, key, stream, objectMetadata);
+        putRequest.setCannedAcl(CannedAccessControlList.BucketOwnerFullControl);
+
+        s3client.putObject(putRequest);
     }
 
     private List<Map<String, Object>> transformSpApiData(List<Map<String, String>> list) {
