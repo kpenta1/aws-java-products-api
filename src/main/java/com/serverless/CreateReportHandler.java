@@ -10,8 +10,8 @@ import com.serverless.utils.AwsClient;
 
 import com.google.gson.Gson;
 
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -26,22 +26,28 @@ public class CreateReportHandler implements RequestHandler<Map<String, Object>, 
 
         logger.log(INFO, "Request: " + gson.toJson(input));
 
-        final String reportType = (String) input.get("reportType");
-        final List<String> marketplaceIds = (List<String>) input.get("marketplaceIds");
+        Map<String, Object> inputBody = gson.fromJson((String) input.get("body"), Map.class);
 
-        validateInput(reportType, marketplaceIds);
+        final String marketplaceId = (String) inputBody.get("MarketplaceId");
+
+        if (StringUtils.isNullOrEmpty(marketplaceId)) {
+            throw new IllegalArgumentException("MarketplaceId cannot be empty");
+        }
 
         Map<String, Object> httpBodyParams = new HashMap<>();
-        httpBodyParams.put("reportType", reportType);
-        httpBodyParams.put("marketplaceIds", marketplaceIds);
+        httpBodyParams.put("reportType", "GET_MERCHANT_LISTINGS_ALL_DATA");
+        httpBodyParams.put("marketplaceIds", Arrays.asList(marketplaceId));
 
         final String createReportApiResponse = callCreateReportApi(httpBodyParams);
         final Map createReportApiResponseMap = gson.fromJson(createReportApiResponse, Map.class);
         final Map<String, Object> payload = (Map<String, Object>) createReportApiResponseMap.get("payload");
 
+        final Map<String, String> apiResponse = new HashMap<>();
+        apiResponse.put("ReportId", (String) payload.get("reportId"));
+
         return ApiGatewayResponse.builder()
                 .setStatusCode(200)
-                .setObjectBody(payload)
+                .setObjectBody(apiResponse)
                 .build();
     }
 
@@ -76,16 +82,5 @@ public class CreateReportHandler implements RequestHandler<Map<String, Object>, 
         logger.log(INFO, "Create report response: " + postReportResponse);
 
         return postReportResponse;
-    }
-
-    private void validateInput(String reportType,
-                               List<String> ids) {
-        if (StringUtils.isNullOrEmpty(reportType)) {
-            throw new IllegalArgumentException("Input field `reportType` cannot be empty");
-        }
-
-        if (ids.isEmpty()) {
-            throw new IllegalArgumentException("Input field `marketplaceIds` cannot be empty");
-        }
     }
 }

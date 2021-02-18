@@ -59,8 +59,13 @@
       <artifactId>aws-signing-request-interceptor</artifactId>
       <version>0.0.22</version>
     </dependency>
-    <!-- START copy dependencies for SP-API-->
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-s3</artifactId>
+      <version>1.11.78</version>
+    </dependency>
 
+    <!-- START copy dependencies for SP-API-->
     <dependency>
       <groupId>com.squareup.okhttp</groupId>
       <artifactId>okhttp</artifactId>

@@ -26,26 +26,16 @@ provider:
   region: us-west-2
   profile: pentak-4
 
-
 # you can overwrite defaults here
 #  stage: dev
 #  region: us-east-1
 
 # you can add statements to the Lambda function's IAM Role here
-#  iamRoleStatements:
-#    - Effect: "Allow"
-#      Action:
-#        - "s3:ListBucket"
-#      Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" } ] ]  }
-#    - Effect: "Allow"
-#      Action:
-#        - "s3:PutObject"
-#      Resource:
-#        Fn::Join:
-#          - ""
-#          - - "arn:aws:s3:::"
-#            - "Ref" : "ServerlessDeploymentBucket"
-#            - "/*"
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:PutObject"
+      Resource: "*"
 
 # you can define service wide environment variables here
 #  environment:
@@ -58,6 +48,7 @@ package:
 functions:
   createReport:
     handler: com.serverless.CreateReportHandler
+    timeout: 300
     events:
       - http:
           path: /create-report
@@ -65,7 +56,8 @@ functions:
 
   getReport:
     handler: com.serverless.GetReportHandler
+    timeout: 300
     events:
       - http:
           path: /get-report
-          method: get
+          method: post

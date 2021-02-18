@@ -4,8 +4,16 @@ import static com.serverless.utils.RefreshSpApiAccessToken.getRefreshAccessToken
 import static com.serverless.utils.SpApiResponseParser.parseGetDocumentResponse;
 import static java.util.logging.Level.INFO;
 
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.util.StringUtils;
 import com.serverless.external.portsp.DownloadBundle;
 import com.serverless.external.portsp.DownloadHelper;
 import com.serverless.external.portsp.DownloadSpecification;
@@ -40,6 +48,18 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
     public ApiGatewayResponse handleRequest(Map<String, Object> input, Context context) {
         logger.log(INFO, "Request: " + gson.toJson(input));
 
+        Map<String, Object> inputBody = gson.fromJson((String) input.get("body"), Map.class);
+
+        final String requestId = (String) inputBody.get("RequestId");
+        final String sellerId = (String) inputBody.get("SellerId");
+        final String reportId = (String) inputBody.get("ReportId");
+
+        if (StringUtils.isNullOrEmpty(requestId)
+                || StringUtils.isNullOrEmpty(sellerId)
+                || StringUtils.isNullOrEmpty(reportId)) {
+            throw new IllegalArgumentException("Input fields RequestId, SellerId, ReportId cannot be empty");
+        }
+
         final String refreshToken = System.getenv("refreshToken");
         final String clientId = System.getenv("clientId");
         final String clientSecret = System.getenv("clientSecret");
@@ -54,7 +74,6 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
         final String accessToken = getRefreshAccessToken(oauthUrl, refreshToken, clientId, clientSecret);
         logger.log(INFO, "Refresh token: " + accessToken);
 
-        final String reportId = "53434018674";
         final Map<String, Object> reportStatusMap = getReportStatus(
                 reportId, spApiBaseUrl, spApiAccessKey, spApiSecretKey, spApiServiceName, spApiRegion, accessToken);
 
@@ -76,9 +95,24 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
         final List<Map<String, String>> reportDocumentData = getReportDocumentData(
                 spApiBaseUrl, spApiAccessKey, spApiSecretKey, spApiServiceName, spApiRegion, accessToken, documentId);
 
+        final String catalogData = gson.toJson(reportDocumentData);
+
+        logger.log(INFO, " Writing report data to s3 ");
+
+        AmazonS3 s3Client = AmazonS3ClientBuilder.standard().withRegion(Regions.DEFAULT_REGION).build();
+
+        String bucket = System.getenv("destinationS3Bucket");
+        String key = sellerId + "/" + requestId + "/extract/spapi_get_report_response";
+
+        writeToS3(bucket, key, catalogData);
+
+        Map<String, Object> apiReponse = new HashMap<>();
+        apiReponse.put("IsComplete", true);
+        apiReponse.put("SpApiResponseS3Key", key);
+
         return ApiGatewayResponse.builder()
                 .setStatusCode(200)
-                .setObjectBody(reportDocumentData)
+                .setObjectBody(apiReponse)
                 .build();
     }
 
@@ -191,5 +225,23 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
         }
 
         return resultList;
+    }
+
+    private void writeToS3(String bucket, String key, String data) {
+        String accessKey = System.getenv("serverlessAppAccessKey");
+        String secretKey = System.getenv("serverlessAppSecretKey");
+        String appRegion = System.getenv("AWS_REGION");
+
+        logger.log(INFO, " Catalog data: \n" + data);
+
+        AWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
+
+        AmazonS3 s3client = AmazonS3ClientBuilder
+                .standard()
+                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .withRegion(Regions.fromName(appRegion))
+                .build();
+
+        s3client.putObject(bucket, key, data);
     }
 }
