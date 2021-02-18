@@ -12,7 +12,7 @@
      * spApiAwsAccountSecretKey: "Secret key associated with role registered with SP-API"
      * spApiServiceName: "execute-api"
      * spApiRegion: ""
-     * spApiBaseUrl: "https://sellingpartnerapi-na.amazon.com/reports/2020-09-04/"
+     * spApiBaseUrl: ""
      * serverlessAppAccessKey: "Access key to deploy to app in to your aws account"
      * serverlessAppSecretKey: "Secret key to deploy to app in to your aws account"
      * destinationS3Bucket: "Bucket where to write sp-api document data"
