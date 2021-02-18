@@ -2,7 +2,8 @@
 
 ## Set up instructions
 * Install serverless https://www.serverless.com/
-* Set up environment configuration for SP-API in serverless.yml file
+* change the profile value in serverless.yml to aws profile you set on your cli.
+* Set up environment configuration for SP-API in serverless.yml file. Add following configuration under provider > environment key
      * refreshToken: "SP-API App refresh token"
      * clientId: "SP-API App client id"
      * clientSecret: "SP-API App client secret"
@@ -15,5 +16,8 @@
      * serverlessAppAccessKey: "Access key to deploy to app in to your aws account"
      * serverlessAppSecretKey: "Secret key to deploy to app in to your aws account"
      * destinationS3Bucket: "Bucket where to write sp-api document data"
+* From root of project execute following commands 
+  * mvn clean install
+  * serverless deploy
 
 

@@ -83,6 +83,7 @@ public class GetReportHandler implements RequestHandler<Map<String, Object>, Api
         if (!"DONE".equals(processingStatus)) {
             Map<String, Object> responseMap = new HashMap<>();
             responseMap.put("IsComplete", false);
+            responseMap.put("SpApiResponseS3Key", null);
 
             return ApiGatewayResponse.builder()
                     .setStatusCode(200)
